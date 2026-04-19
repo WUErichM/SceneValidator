@@ -1,0 +1,4 @@
+Scene Validator Report
+=====================
+THE TUBE - Inactive Object
+THE ORB - Missing Script

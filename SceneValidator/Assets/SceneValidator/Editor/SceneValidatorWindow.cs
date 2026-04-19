@@ -1,47 +1,96 @@
 using UnityEditor;
 using UnityEngine;
 using System.Collections.Generic;
+using System.Text;
+using System.IO;
 
 public class SceneValidatorWindow : EditorWindow
 {
     private List<ScanResult> results = new List<ScanResult>();
-    private Vector2 scrollPos;
+    private Vector2 scroll;
 
     [MenuItem("Tools/Scene Validator")]
-    public static void ShowWindow()
+    public static void Open()
     {
         GetWindow<SceneValidatorWindow>("Scene Validator");
     }
 
     private void OnGUI()
     {
-        GUILayout.Label("Scene Validator", EditorStyles.boldLabel);
+        GUILayout.Label("Scene Validator (Beta)", EditorStyles.boldLabel);
+
+        GUILayout.BeginHorizontal();
 
         if (GUILayout.Button("Scan Scene"))
         {
             results = SceneScanUtility.ScanScene();
         }
 
+        if (GUILayout.Button("Export Report"))
+        {
+            ExportReport();
+        }
+
+        GUILayout.EndHorizontal();
+
         GUILayout.Space(10);
 
-        GUILayout.Label("Results:", EditorStyles.boldLabel);
+        GUILayout.Label("Issues Found: " + results.Count, EditorStyles.boldLabel);
 
-        scrollPos = GUILayout.BeginScrollView(scrollPos);
+        scroll = GUILayout.BeginScrollView(scroll);
 
-        foreach (var result in results)
+        foreach (var r in results)
         {
-            GUILayout.BeginHorizontal();
+            GUILayout.BeginVertical("box");
 
-            if (GUILayout.Button(result.obj.name))
+            GUI.color = GetColor(r.type);
+
+            if (GUILayout.Button(r.obj.name))
             {
-                Selection.activeGameObject = result.obj;
+                Selection.activeGameObject = r.obj;
             }
 
-            GUILayout.Label(result.issue);
+            GUI.color = Color.white;
 
-            GUILayout.EndHorizontal();
+            GUILayout.Label(r.issue);
+
+            GUILayout.EndVertical();
         }
 
         GUILayout.EndScrollView();
+    }
+
+    private Color GetColor(IssueType type)
+    {
+        switch (type)
+        {
+            case IssueType.MissingScript:
+                return Color.red;
+            case IssueType.MissingReference:
+                return Color.yellow;
+            case IssueType.InactiveObject:
+                return Color.cyan;
+            default:
+                return Color.white;
+        }
+    }
+
+    private void ExportReport()
+    {
+        StringBuilder sb = new StringBuilder();
+
+        sb.AppendLine("Scene Validator Report");
+        sb.AppendLine("=====================");
+
+        foreach (var r in results)
+        {
+            sb.AppendLine(r.obj.name + " - " + r.issue);
+        }
+
+        string path = Application.dataPath + "/SceneValidatorReport.txt";
+        File.WriteAllText(path, sb.ToString());
+
+        Debug.Log("Report exported to: " + path);
+        AssetDatabase.Refresh();
     }
 }
