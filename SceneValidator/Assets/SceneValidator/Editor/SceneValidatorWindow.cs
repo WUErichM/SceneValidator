@@ -3,26 +3,37 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
+using System.Linq;
 
 public class SceneValidatorWindow : EditorWindow
 {
     private List<ScanResult> results = new List<ScanResult>();
     private Vector2 scroll;
 
+    private bool showErrors = true;
+    private bool showWarnings = true;
+    private bool showInfo = true;
+
     [MenuItem("Tools/Scene Validator")]
     public static void Open()
     {
-        GetWindow<SceneValidatorWindow>("Scene Validator");
+        GetWindow<SceneValidatorWindow>("Scene Validator v1.0");
     }
 
     private void OnGUI()
     {
-        GUILayout.Label("Scene Validator (Beta)", EditorStyles.boldLabel);
+        GUILayout.Label("Scene Validator v1.0", EditorStyles.boldLabel);
 
         GUILayout.BeginHorizontal();
 
         if (GUILayout.Button("Scan Scene"))
         {
+            results = SceneScanUtility.ScanScene();
+        }
+
+        if (GUILayout.Button("Fix All (Safe)"))
+        {
+            SceneScanUtility.FixAll(results);
             results = SceneScanUtility.ScanScene();
         }
 
@@ -35,15 +46,31 @@ public class SceneValidatorWindow : EditorWindow
 
         GUILayout.Space(10);
 
-        GUILayout.Label("Issues Found: " + results.Count, EditorStyles.boldLabel);
+        GUILayout.Label("Filters", EditorStyles.boldLabel);
+
+        showErrors = GUILayout.Toggle(showErrors, "Errors");
+        showWarnings = GUILayout.Toggle(showWarnings, "Warnings");
+        showInfo = GUILayout.Toggle(showInfo, "Info");
+
+        GUILayout.Space(10);
+
+        int errorCount = results.Count(r => r.severity == SeverityLevel.Error);
+        int warningCount = results.Count(r => r.severity == SeverityLevel.Warning);
+        int infoCount = results.Count(r => r.severity == SeverityLevel.Info);
+
+        GUILayout.Label($"Errors: {errorCount} | Warnings: {warningCount} | Info: {infoCount}");
+
+        GUILayout.Space(10);
 
         scroll = GUILayout.BeginScrollView(scroll);
 
         foreach (var r in results)
         {
+            if (!ShouldShow(r)) continue;
+
             GUILayout.BeginVertical("box");
 
-            GUI.color = GetColor(r.type);
+            GUI.color = GetColor(r.severity);
 
             if (GUILayout.Button(r.obj.name))
             {
@@ -53,6 +80,17 @@ public class SceneValidatorWindow : EditorWindow
             GUI.color = Color.white;
 
             GUILayout.Label(r.issue);
+            GUILayout.Label("Type: " + r.type.ToString());
+
+            GUILayout.BeginHorizontal();
+
+            if (GUILayout.Button("Fix"))
+            {
+                SceneScanUtility.FixIssue(r);
+                results = SceneScanUtility.ScanScene();
+            }
+
+            GUILayout.EndHorizontal();
 
             GUILayout.EndVertical();
         }
@@ -60,15 +98,23 @@ public class SceneValidatorWindow : EditorWindow
         GUILayout.EndScrollView();
     }
 
-    private Color GetColor(IssueType type)
+    private bool ShouldShow(ScanResult r)
     {
-        switch (type)
+        if (r.severity == SeverityLevel.Error && !showErrors) return false;
+        if (r.severity == SeverityLevel.Warning && !showWarnings) return false;
+        if (r.severity == SeverityLevel.Info && !showInfo) return false;
+        return true;
+    }
+
+    private Color GetColor(SeverityLevel severity)
+    {
+        switch (severity)
         {
-            case IssueType.MissingScript:
+            case SeverityLevel.Error:
                 return Color.red;
-            case IssueType.MissingReference:
+            case SeverityLevel.Warning:
                 return Color.yellow;
-            case IssueType.InactiveObject:
+            case SeverityLevel.Info:
                 return Color.cyan;
             default:
                 return Color.white;
@@ -79,12 +125,12 @@ public class SceneValidatorWindow : EditorWindow
     {
         StringBuilder sb = new StringBuilder();
 
-        sb.AppendLine("Scene Validator Report");
-        sb.AppendLine("=====================");
+        sb.AppendLine("Scene Validator Report v1.0");
+        sb.AppendLine("===========================");
 
         foreach (var r in results)
         {
-            sb.AppendLine(r.obj.name + " - " + r.issue);
+            sb.AppendLine($"[{r.severity}] {r.obj.name} - {r.issue}");
         }
 
         string path = Application.dataPath + "/SceneValidatorReport.txt";

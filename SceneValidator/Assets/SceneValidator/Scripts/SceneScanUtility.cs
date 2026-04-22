@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEditor;
 
 public static class SceneScanUtility
 {
@@ -23,7 +24,8 @@ public static class SceneScanUtility
                     results.Add(new ScanResult(
                         obj,
                         "Missing Script",
-                        IssueType.MissingScript
+                        IssueType.MissingScript,
+                        SeverityLevel.Error
                     ));
                 }
             }
@@ -36,12 +38,13 @@ public static class SceneScanUtility
                 results.Add(new ScanResult(
                     obj,
                     "Inactive Object",
-                    IssueType.InactiveObject
+                    IssueType.InactiveObject,
+                    SeverityLevel.Warning
                 ));
             }
 
             // -------------------------
-            // 3. Missing References (BASIC CHECK)
+            // 3. Missing References
             // -------------------------
             MonoBehaviour[] scripts = obj.GetComponents<MonoBehaviour>();
 
@@ -62,7 +65,8 @@ public static class SceneScanUtility
                             results.Add(new ScanResult(
                                 obj,
                                 "Unassigned Reference: " + field.Name,
-                                IssueType.MissingReference
+                                IssueType.MissingReference,
+                                SeverityLevel.Error
                             ));
                         }
                     }
@@ -71,5 +75,45 @@ public static class SceneScanUtility
         }
 
         return results;
+    }
+
+    // -------------------------
+    // FIX SINGLE ISSUE
+    // -------------------------
+    public static void FixIssue(ScanResult result)
+    {
+        if (result.obj == null) return;
+
+        switch (result.type)
+        {
+            case IssueType.MissingScript:
+                GameObjectUtility.RemoveMonoBehavioursWithMissingScript(result.obj);
+                Debug.Log("Removed missing script from: " + result.obj.name);
+                break;
+
+            case IssueType.InactiveObject:
+                result.obj.SetActive(true);
+                Debug.Log("Activated object: " + result.obj.name);
+                break;
+
+            case IssueType.MissingReference:
+                Debug.LogWarning("Cannot auto-fix missing references on: " + result.obj.name);
+                break;
+        }
+    }
+
+    // -------------------------
+    // FIX ALL SAFE ISSUES
+    // -------------------------
+    public static void FixAll(List<ScanResult> results)
+    {
+        foreach (var result in results)
+        {
+            if (result.type == IssueType.MissingScript ||
+                result.type == IssueType.InactiveObject)
+            {
+                FixIssue(result);
+            }
+        }
     }
 }
